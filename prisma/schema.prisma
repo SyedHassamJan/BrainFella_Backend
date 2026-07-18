@@ -1,0 +1,288 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  PATIENT
+  THERAPIST
+  GUARDIAN
+  ADMIN
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+enum SessionType {
+  ONLINE
+  IN_PERSON
+}
+
+enum EmotionLabel {
+  joy
+  sadness
+  anger
+  fear
+  disgust
+  surprise
+  neutral
+}
+
+enum ReportStatus {
+  GENERATED
+  SENT
+}
+
+model User {
+  id                    String    @id @default(uuid())
+  email                 String    @unique
+  name                  String
+  password              String?
+  hashedRefreshToken    String?
+  role                  Role      @default(PATIENT)
+  profileImage          String?
+  phone                 String?
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  patientProfile        PatientProfile?
+  therapistProfile      TherapistProfile?
+  appointmentsAsPatient   Appointment[]       @relation("PatientAppointments")
+  appointmentsAsTherapist Appointment[]       @relation("TherapistAppointments")
+  journalEntries          JournalEntry[]
+  moodLogs                MoodLog[]
+  chatSessions            ChatSession[]
+  guardianLink            GuardianLink?       @relation("PatientGuardian")
+  reportsReceived         WeeklyReport[]      @relation("GuardianReports")
+  reportsAbout            WeeklyReport[]      @relation("PatientReports")
+  completedExercises      ExerciseCompletion[]
+
+  @@map("users")
+}
+
+model PatientProfile {
+  id               String    @id @default(uuid())
+  userId           String    @unique
+  dateOfBirth      DateTime?
+  gender           String?
+  emergencyContact String?
+  conditions       String[]
+  createdAt        DateTime  @default(now())
+
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("patient_profiles")
+}
+
+model TherapistProfile {
+  id                String    @id @default(uuid())
+  userId            String    @unique
+  bio               String?
+  specializations   String[]
+  qualifications    String[]
+  experienceYears   Int       @default(0)
+  profileImage      String?
+  consultationFee   Float?
+  availableDays     String[]
+  availableTimeFrom String?
+  availableTimeTo   String?
+  rating            Float?    @default(0)
+  totalReviews      Int       @default(0)
+  isVerified        Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviews           TherapistReview[]
+
+  @@map("therapist_profiles")
+}
+
+model GuardianLink {
+  id             String   @id @default(uuid())
+  patientId      String   @unique
+  guardianEmail  String
+  guardianName   String?
+  guardianPhone  String?
+  relationship   String?
+  isConfirmed    Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  patient        User     @relation("PatientGuardian", fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("guardian_links")
+}
+
+model Appointment {
+  id             String            @id @default(uuid())
+  patientId      String
+  therapistId    String
+  scheduledAt    DateTime
+  duration       Int               @default(60)
+  sessionType    SessionType       @default(ONLINE)
+  status         AppointmentStatus @default(PENDING)
+  notes          String?
+  therapistNotes String?
+  meetingLink    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  patient        User              @relation("PatientAppointments", fields: [patientId], references: [id])
+  therapist      User              @relation("TherapistAppointments", fields: [therapistId], references: [id])
+
+  @@map("appointments")
+}
+
+model JournalEntry {
+  id               String        @id @default(uuid())
+  userId           String
+  title            String?
+  content          String
+  detectedEmotion  EmotionLabel?
+  emotionScore     Float?
+  isCrisis         Boolean       @default(false)
+  therapistComment String?
+  isReviewed       Boolean       @default(false)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("journal_entries")
+}
+
+model MoodLog {
+  id        String       @id @default(uuid())
+  userId    String
+  mood      EmotionLabel
+  intensity Int
+  note      String?
+  loggedAt  DateTime     @default(now())
+
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("mood_logs")
+}
+
+model ChatSession {
+  id        String        @id @default(uuid())
+  userId    String
+  title     String?
+  createdAt DateTime      @default(now())
+  endedAt   DateTime?
+
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  ChatMessage[]
+
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id              String        @id @default(uuid())
+  sessionId       String
+  role            String
+  content         String
+  detectedEmotion EmotionLabel?
+  emotionScore    Float?
+  isCrisis        Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+
+  session         ChatSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("chat_messages")
+}
+
+model CbtExercise {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  category    String
+  steps       String[]
+  duration    Int?
+  difficulty  String   @default("beginner")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  completions ExerciseCompletion[]
+
+  @@map("cbt_exercises")
+}
+
+model ExerciseCompletion {
+  id          String      @id @default(uuid())
+  userId      String
+  exerciseId  String
+  completedAt DateTime    @default(now())
+  feedback    String?
+  rating      Int?
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise    CbtExercise @relation(fields: [exerciseId], references: [id])
+
+  @@unique([userId, exerciseId])
+  @@map("exercise_completions")
+}
+
+model WeeklyReport {
+  id                  String        @id @default(uuid())
+  patientId           String
+  guardianId          String?
+  guardianEmail       String
+  weekStartDate       DateTime
+  weekEndDate         DateTime
+  dominantEmotion     EmotionLabel?
+  averageMoodScore    Float?
+  totalMoodLogs       Int           @default(0)
+  totalJournalEntries Int           @default(0)
+  crisisEventsCount   Int           @default(0)
+  totalChatSessions   Int           @default(0)
+  exercisesCompleted  Int           @default(0)
+  appointmentsHeld    Int           @default(0)
+  therapistSummary    String?
+  status              ReportStatus  @default(GENERATED)
+  sentAt              DateTime?
+  createdAt           DateTime      @default(now())
+
+  patient             User          @relation("PatientReports", fields: [patientId], references: [id])
+  guardian            User?         @relation("GuardianReports", fields: [guardianId], references: [id])
+
+  @@map("weekly_reports")
+}
+
+model TherapistReview {
+  id                 String           @id @default(uuid())
+  therapistProfileId String
+  patientId          String
+  rating             Int
+  comment            String?
+  createdAt          DateTime         @default(now())
+
+  therapistProfile   TherapistProfile @relation(fields: [therapistProfileId], references: [id])
+
+  @@map("therapist_reviews")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}
