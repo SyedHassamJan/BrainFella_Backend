@@ -33,14 +33,14 @@ therapist/    ← verified therapist directory, reviews
 appointment/  ← book / confirm / cancel / complete
 journal/      ← AI emotion detection, crisis detection
 mood/         ← mood logs, 7-day insights
-chatbot/      ← Claude Haiku sessions + HuggingFace emotion
+chatbot/      ← Groq (gpt-oss-120b) sessions + HuggingFace emotion
 cbt/          ← CBT exercise library + completions
 report/       ← cron-generated weekly reports → email
 admin/        ← platform stats, user management, crisis events
 notification/ ← global in-app notifications (injected everywhere)
 questionnaire/← PHQ-9 / GAD-7 / OCI-R / DASS-21 scoring (no AI)
 screening/    ← text analysis (HF models) + voice proxy to the ML service
-common/       ← shared crisis keywords + Hugging Face helpers
+common/       ← shared crisis keywords, Hugging Face + Groq helpers, therapist-link check
 prisma/       ← global PrismaModule / PrismaService
 filters/      ← GlobalExceptionFilter (catches all errors)
 types/        ← shared enums (Role, EmotionLabel, etc.)
@@ -51,7 +51,7 @@ types/        ← shared enums (Role, EmotionLabel, etc.)
 - Role restrictions: `@Roles(Role.X) @UseGuards(JwtAuthGuard, RolesGuard)` (JWT must come first)
 - Ownership verified at DB level: `findFirst({ where: { id, userId } })` — never `findUnique` alone
 - DTOs use `class-validator` decorators; `ValidationPipe(whitelist: true)` is global
-- External API failures (HuggingFace, Claude) always fall back — never let them throw to the client
+- External API failures (HuggingFace, Groq) always fall back — never let them throw to the client
 - `NotificationService` is globally provided — inject it anywhere, no re-import needed
 
 ### Dev commands
