@@ -100,10 +100,14 @@ export class UserService {
       });
 
       if (patientProfile) {
+        // The DTO accepts an ISO date string (including a bare "2003-05-21"), but
+        // Prisma's DateTime needs a Date: passing the string through made it throw (500).
+        const { dateOfBirth, ...rest } = patientProfile;
+        const data = { ...rest, ...(dateOfBirth ? { dateOfBirth: new Date(dateOfBirth) } : {}) };
         await tx.patientProfile.upsert({
           where: { userId },
-          create: { userId, ...patientProfile },
-          update: patientProfile,
+          create: { userId, ...data },
+          update: data,
         });
       }
 

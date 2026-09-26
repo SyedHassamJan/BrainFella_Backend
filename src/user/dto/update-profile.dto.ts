@@ -5,6 +5,7 @@ import {
   IsArray,
   IsDateString,
   IsUrl,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -78,10 +79,14 @@ export class UpdateProfileDto {
   phone?: string;
 
   @IsOptional()
+  // ValidateNested is what makes the global whitelist/validation apply INSIDE this object. Without it,
+  // any field (userId, isVerified, rating...) passed straight through into the database write.
+  @ValidateNested()
   @Type(() => UpdatePatientProfileDto)
   patientProfile?: UpdatePatientProfileDto;
 
   @IsOptional()
+  @ValidateNested()
   @Type(() => UpdateTherapistProfileDto)
   therapistProfile?: UpdateTherapistProfileDto;
 }
