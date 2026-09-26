@@ -10,7 +10,7 @@ async function bootstrap() {
   // base64 media get a large limit (Express's default is 100 kB); everything
   // else keeps a small one. The route-specific parser must come first.
   const app = await NestFactory.create(AppModule, { bodyParser: false });
-  app.use('/screening/analyze-voice', json({ limit: '15mb' }));
+  app.use(['/screening/analyze-voice', '/screening/analyze-face'], json({ limit: '15mb' }));
   app.use(json());
   app.use(urlencoded({ extended: true }));
 

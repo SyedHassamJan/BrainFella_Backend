@@ -61,4 +61,35 @@ describe('MlServiceClient.analyzeVoice', () => {
     await expect(client.analyzeVoice('QUJD')).rejects.toBeInstanceOf(ServiceUnavailableException);
     expect(global.fetch).not.toHaveBeenCalled();
   });
+
+  describe('analyzeFace', () => {
+    const face = {
+      emotion: 'happy',
+      emotionScores: { happy: 1 },
+      eyeContact: true,
+      blinkRate: null,
+      headPose: { yaw: 0, pitch: 0, roll: 0 },
+      models: {},
+      note: '',
+    };
+
+    it('posts the image to /analyze-face with the internal key', async () => {
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => face }) as any;
+      await expect(client.analyzeFace('SU1H')).resolves.toMatchObject({ emotion: 'happy' });
+      const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
+      expect(url).toBe('http://ml.test/analyze-face');
+      expect(init.headers['X-Internal-Key']).toBe('k');
+      expect(JSON.parse(init.body)).toEqual({ image: 'SU1H' });
+    });
+
+    it.each(['no_face_detected', 'invalid_image', 'image_too_large'])('maps %s to a 422', async (error) => {
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ error }) }) as any;
+      await expect(client.analyzeFace('SU1H')).rejects.toBeInstanceOf(UnprocessableEntityException);
+    });
+
+    it('maps outages to a 503 that says "Face"', async () => {
+      global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED')) as any;
+      await expect(client.analyzeFace('SU1H')).rejects.toThrow('Face analysis is temporarily unavailable');
+    });
+  });
 });
