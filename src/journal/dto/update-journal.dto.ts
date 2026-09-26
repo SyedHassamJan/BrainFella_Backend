@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MinLength, MaxLength } from 'class-validator';
+import { IsOptional, IsString, IsNotEmpty, MaxLength } from 'class-validator';
 
 export class UpdateJournalDto {
   @IsOptional()
@@ -8,6 +8,6 @@ export class UpdateJournalDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(10)
+  @IsNotEmpty()
   content?: string;
 }
