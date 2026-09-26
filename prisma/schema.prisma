@@ -292,14 +292,17 @@ model TherapistReview {
 }
 
 model Notification {
-  id        String   @id @default(uuid())
-  userId    String
-  title     String
-  message   String
-  type      String
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id            String   @id @default(uuid())
+  userId        String
+  title         String
+  message       String
+  type          String
+  isRead        Boolean  @default(false)
+  // Set on CRISIS_ALERT notifications sent to a therapist: the patient it is about.
+  relatedUserId String?
+  createdAt     DateTime @default(now())
 
+  @@index([userId, type, relatedUserId, createdAt])
   @@map("notifications")
 }
 
