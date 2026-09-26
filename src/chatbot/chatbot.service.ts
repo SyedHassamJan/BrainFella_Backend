@@ -8,19 +8,12 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { NotificationService } from 'src/notification/notification.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { EmotionLabel } from 'src/types/enums';
-
-const CRISIS_KEYWORDS = [
-  'suicide',
-  'kill myself',
-  'end my life',
-  'want to die',
-  'self harm',
-  'cut myself',
-  'hurt myself',
-  'no reason to live',
-  'hopeless',
-  'worthless',
-];
+import { containsCrisisKeywords } from 'src/common/crisis';
+import {
+  DEFAULT_EMOTION_MODEL,
+  hfModelUrl,
+  parseClassification,
+} from 'src/common/huggingface';
 
 const CRISIS_RESPONSE =
   "🚨 I can sense you're going through something very serious. Your life matters deeply. Please reach out to the Umang helpline right now: **0317-4288665**. You can also book a session with one of our therapists on BrainHealth. You are not alone. 💙";
@@ -192,7 +185,7 @@ Guidelines:
   ): Promise<{ emotion: EmotionLabel; score: number }> {
     try {
       const response = await fetch(
-        'https://api-inference.huggingface.co/models/j-hartmann/emotion-english-distilroberta-base',
+        hfModelUrl(process.env.HF_EMOTION_MODEL || DEFAULT_EMOTION_MODEL),
         {
           method: 'POST',
           headers: {
@@ -214,16 +207,12 @@ Guidelines:
         return { emotion: EmotionLabel.neutral, score: 0.5 };
       }
 
-      const data = (await response.json()) as Array<
-        Array<{ label: string; score: number }>
-      >;
-
-      // Validate nested array shape: [[{label, score}, ...]]
-      if (!data || !Array.isArray(data) || !Array.isArray(data[0]) || !data[0][0]) {
+      // Accepts both [[{label, score}, ...]] and [{label, score}, ...]
+      const top = parseClassification(await response.json())[0];
+      if (!top) {
         return { emotion: EmotionLabel.neutral, score: 0.5 };
       }
 
-      const top = data[0][0];
       const emotionLabel = top.label.toLowerCase() as EmotionLabel;
 
       // Validate returned label is in our known enum
@@ -239,7 +228,6 @@ Guidelines:
   }
 
   private checkCrisis(text: string): boolean {
-    const lower = text.toLowerCase();
-    return CRISIS_KEYWORDS.some((kw) => lower.includes(kw));
+    return containsCrisisKeywords(text);
   }
 }

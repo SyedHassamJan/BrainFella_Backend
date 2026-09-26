@@ -9,19 +9,12 @@ import { CreateJournalDto } from './dto/create-journal.dto';
 import { UpdateJournalDto } from './dto/update-journal.dto';
 import { TherapistCommentDto } from './dto/therapist-comment.dto';
 import { EmotionLabel } from 'src/types/enums';
-
-const CRISIS_KEYWORDS = [
-  'suicide',
-  'kill myself',
-  'end my life',
-  'want to die',
-  'self harm',
-  'cut myself',
-  'hurt myself',
-  'no reason to live',
-  'hopeless',
-  'worthless',
-];
+import { containsCrisisKeywords } from 'src/common/crisis';
+import {
+  DEFAULT_EMOTION_MODEL,
+  hfModelUrl,
+  parseClassification,
+} from 'src/common/huggingface';
 
 @Injectable()
 export class JournalService {
@@ -36,7 +29,7 @@ export class JournalService {
   ): Promise<{ emotion: EmotionLabel; score: number }> {
     try {
       const response = await fetch(
-        'https://api-inference.huggingface.co/models/j-hartmann/emotion-english-distilroberta-base',
+        hfModelUrl(process.env.HF_EMOTION_MODEL || DEFAULT_EMOTION_MODEL),
         {
           method: 'POST',
           headers: {
@@ -58,16 +51,12 @@ export class JournalService {
         return { emotion: EmotionLabel.neutral, score: 0.5 };
       }
 
-      const data = (await response.json()) as Array<
-        Array<{ label: string; score: number }>
-      >;
-
-      // Validate the nested array shape: [[{label, score}, ...]]
-      if (!data || !Array.isArray(data) || !Array.isArray(data[0]) || !data[0][0]) {
+      // Accepts both [[{label, score}, ...]] and [{label, score}, ...]
+      const top = parseClassification(await response.json())[0];
+      if (!top) {
         return { emotion: EmotionLabel.neutral, score: 0.5 };
       }
 
-      const top = data[0][0];
       const emotionLabel = top.label.toLowerCase() as EmotionLabel;
 
       // Validate label is a known enum value
@@ -84,8 +73,7 @@ export class JournalService {
   }
 
   checkCrisis(text: string): boolean {
-    const lower = text.toLowerCase();
-    return CRISIS_KEYWORDS.some((kw) => lower.includes(kw));
+    return containsCrisisKeywords(text);
   }
 
   async create(userId: string, dto: CreateJournalDto) {
