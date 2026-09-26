@@ -27,7 +27,7 @@ const ZEROSHOT = [
 
 describe('TextAnalysisService', () => {
   const realFetch = global.fetch;
-  let notifications: { createNotification: jest.Mock };
+  let notifications: { createNotification: jest.Mock; notifyLinkedTherapistsOfCrisis: jest.Mock };
   let service: TextAnalysisService;
 
   beforeEach(() => {
@@ -35,7 +35,7 @@ describe('TextAnalysisService', () => {
     process.env.HF_EMOTION_MODEL = 'x/emotion-model';
     process.env.HF_SENTIMENT_MODEL = 'x/sentiment-model';
     process.env.HF_ZEROSHOT_MODEL = 'x/zeroshot-model';
-    notifications = { createNotification: jest.fn().mockResolvedValue({}) };
+    notifications = { createNotification: jest.fn().mockResolvedValue({}), notifyLinkedTherapistsOfCrisis: jest.fn().mockResolvedValue(0) };
     service = new TextAnalysisService(notifications as any);
   });
   afterEach(() => {
@@ -113,6 +113,7 @@ describe('TextAnalysisService', () => {
     expect(r.crisisFlag).toBe(true);
     expect(r.crisisSupport).toMatch(/0317-4288665/);
     expect(notifications.createNotification).toHaveBeenCalledWith('u1', expect.any(String), expect.any(String), 'CRISIS_DETECTED');
+    expect(notifications.notifyLinkedTherapistsOfCrisis).toHaveBeenCalledWith('u1', 'screening');
     expect(r.available).toBe(true);
   });
 

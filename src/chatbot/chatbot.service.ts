@@ -3,12 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { NotificationService } from 'src/notification/notification.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { EmotionLabel } from 'src/types/enums';
 import { containsCrisisKeywords } from 'src/common/crisis';
+import { groqChat, type GroqMessage } from 'src/common/groq';
 import {
   DEFAULT_EMOTION_MODEL,
   hfModelUrl,
@@ -20,14 +20,10 @@ const CRISIS_RESPONSE =
 
 @Injectable()
 export class ChatbotService {
-  private anthropic: Anthropic;
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
-  ) {
-    this.anthropic = new Anthropic({ apiKey: process.env.CLAUDE_API_KEY });
-  }
+  ) {}
 
   async startSession(userId: string) {
     return this.prisma.chatSession.create({
@@ -102,6 +98,7 @@ export class ChatbotService {
         'We noticed you may be in crisis. Please call Umang: 0317-4288665 or book a therapist session.',
         'CRISIS_DETECTED',
       );
+      await this.notificationService.notifyLinkedTherapistsOfCrisis(userId, 'chat');
       return {
         reply: CRISIS_RESPONSE,
         detectedEmotion: emotion,
@@ -110,14 +107,15 @@ export class ChatbotService {
       };
     }
 
-    // 3. Get conversation history for context (last 10 messages)
-    const history = await this.prisma.chatMessage.findMany({
+    // 3. Get conversation history for context: the LATEST 10 messages, oldest first
+    //    (fetch newest-first so `take` keeps the recent ones, then put them back in order)
+    const recent = await this.prisma.chatMessage.findMany({
       where: { sessionId: dto.sessionId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
       take: 10,
     });
+    const history = recent.reverse();
 
-    // 4. Call Claude Haiku via SDK (FIX 5 — already using SDK correctly)
     const systemPrompt = `You are BrainHealth's compassionate AI mental health companion designed for Pakistani students and young adults.
 
 Current user emotion detected: ${emotion} (confidence: ${Math.round(score * 100)}%)
@@ -132,29 +130,21 @@ Guidelines:
 - If user mentions crisis thoughts: immediately share the Umang helpline: 0317-4288665
 - You support: anxiety, stress, depression, academic pressure, relationship issues, and general mental wellness`;
 
-    const messages = history.map((m) => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    }));
-    messages.push({ role: 'user', content: dto.content });
+    const messages: GroqMessage[] = [
+      { role: 'system', content: systemPrompt },
+      ...history.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+      { role: 'user', content: dto.content },
+    ];
 
     let aiReply =
       "I'm here for you. Could you tell me a little more about how you're feeling right now?";
 
     try {
-      const response = await this.anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 512,
-        system: systemPrompt,
-        messages,
-      });
-      aiReply =
-        response.content[0].type === 'text'
-          ? response.content[0].text
-          : aiReply;
+      // 4. Groq (OpenAI-compatible chat completions) with the conversation so far
+      aiReply = await groqChat(messages);
     } catch (err) {
-      // Graceful fallback — Claude down should never crash the endpoint
-      console.error('Claude API error:', err);
+      // Graceful fallback: the model being down must never crash the endpoint.
+      console.error('Groq chat error:', (err as Error).message);
     }
 
     // 5. Save both messages to DB

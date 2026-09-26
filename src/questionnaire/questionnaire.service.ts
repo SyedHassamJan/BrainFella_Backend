@@ -50,6 +50,7 @@ export class QuestionnaireService {
         'We noticed you may be going through a very difficult time. Please reach out to our helpline: Umang 0317-4288665 or book a session with a therapist.',
         'CRISIS_DETECTED',
       );
+      await this.notificationService.notifyLinkedTherapistsOfCrisis(userId, 'questionnaire');
     }
 
     return {
