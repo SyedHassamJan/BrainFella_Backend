@@ -15,6 +15,7 @@ import { ChatbotModule } from './chatbot/chatbot.module';
 import { CbtModule } from './cbt/cbt.module';
 import { ReportModule } from './report/report.module';
 import { AdminModule } from './admin/admin.module';
+import { QuestionnaireModule } from './questionnaire/questionnaire.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { AdminModule } from './admin/admin.module';
     CbtModule,
     ReportModule,
     AdminModule,
+    QuestionnaireModule,
   ],
   controllers: [AppController],
   providers: [AppService],

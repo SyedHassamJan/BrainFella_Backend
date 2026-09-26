@@ -45,30 +45,38 @@ enum ReportStatus {
   SENT
 }
 
-model User {
-  id                    String    @id @default(uuid())
-  email                 String    @unique
-  name                  String
-  password              String?
-  hashedRefreshToken    String?
-  role                  Role      @default(PATIENT)
-  profileImage          String?
-  phone                 String?
-  isActive              Boolean   @default(true)
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+enum QuestionnaireType {
+  PHQ9
+  GAD7
+  OCIR
+  DASS21
+}
 
-  patientProfile        PatientProfile?
-  therapistProfile      TherapistProfile?
-  appointmentsAsPatient   Appointment[]       @relation("PatientAppointments")
-  appointmentsAsTherapist Appointment[]       @relation("TherapistAppointments")
+model User {
+  id                 String   @id @default(uuid())
+  email              String   @unique
+  name               String
+  password           String?
+  hashedRefreshToken String?
+  role               Role     @default(PATIENT)
+  profileImage       String?
+  phone              String?
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  patientProfile          PatientProfile?
+  therapistProfile        TherapistProfile?
+  appointmentsAsPatient   Appointment[]           @relation("PatientAppointments")
+  appointmentsAsTherapist Appointment[]           @relation("TherapistAppointments")
   journalEntries          JournalEntry[]
   moodLogs                MoodLog[]
   chatSessions            ChatSession[]
-  guardianLink            GuardianLink?       @relation("PatientGuardian")
-  reportsReceived         WeeklyReport[]      @relation("GuardianReports")
-  reportsAbout            WeeklyReport[]      @relation("PatientReports")
+  guardianLink            GuardianLink?           @relation("PatientGuardian")
+  reportsReceived         WeeklyReport[]          @relation("GuardianReports")
+  reportsAbout            WeeklyReport[]          @relation("PatientReports")
   completedExercises      ExerciseCompletion[]
+  questionnaireResponses  QuestionnaireResponse[]
 
   @@map("users")
 }
@@ -82,46 +90,46 @@ model PatientProfile {
   conditions       String[]
   createdAt        DateTime  @default(now())
 
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("patient_profiles")
 }
 
 model TherapistProfile {
-  id                String    @id @default(uuid())
-  userId            String    @unique
+  id                String   @id @default(uuid())
+  userId            String   @unique
   bio               String?
   specializations   String[]
   qualifications    String[]
-  experienceYears   Int       @default(0)
+  experienceYears   Int      @default(0)
   profileImage      String?
   consultationFee   Float?
   availableDays     String[]
   availableTimeFrom String?
   availableTimeTo   String?
-  rating            Float?    @default(0)
-  totalReviews      Int       @default(0)
-  isVerified        Boolean   @default(false)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  rating            Float?   @default(0)
+  totalReviews      Int      @default(0)
+  isVerified        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reviews           TherapistReview[]
+  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviews TherapistReview[]
 
   @@map("therapist_profiles")
 }
 
 model GuardianLink {
-  id             String   @id @default(uuid())
-  patientId      String   @unique
-  guardianEmail  String
-  guardianName   String?
-  guardianPhone  String?
-  relationship   String?
-  isConfirmed    Boolean  @default(false)
-  createdAt      DateTime @default(now())
+  id            String   @id @default(uuid())
+  patientId     String   @unique
+  guardianEmail String
+  guardianName  String?
+  guardianPhone String?
+  relationship  String?
+  isConfirmed   Boolean  @default(false)
+  createdAt     DateTime @default(now())
 
-  patient        User     @relation("PatientGuardian", fields: [patientId], references: [id], onDelete: Cascade)
+  patient User @relation("PatientGuardian", fields: [patientId], references: [id], onDelete: Cascade)
 
   @@map("guardian_links")
 }
@@ -140,8 +148,8 @@ model Appointment {
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
-  patient        User              @relation("PatientAppointments", fields: [patientId], references: [id])
-  therapist      User              @relation("TherapistAppointments", fields: [therapistId], references: [id])
+  patient   User @relation("PatientAppointments", fields: [patientId], references: [id])
+  therapist User @relation("TherapistAppointments", fields: [therapistId], references: [id])
 
   @@map("appointments")
 }
@@ -159,7 +167,7 @@ model JournalEntry {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
-  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("journal_entries")
 }
@@ -172,20 +180,20 @@ model MoodLog {
   note      String?
   loggedAt  DateTime     @default(now())
 
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("mood_logs")
 }
 
 model ChatSession {
-  id        String        @id @default(uuid())
+  id        String    @id @default(uuid())
   userId    String
   title     String?
-  createdAt DateTime      @default(now())
+  createdAt DateTime  @default(now())
   endedAt   DateTime?
 
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages  ChatMessage[]
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
 
   @@map("chat_sessions")
 }
@@ -200,7 +208,7 @@ model ChatMessage {
   isCrisis        Boolean       @default(false)
   createdAt       DateTime      @default(now())
 
-  session         ChatSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@map("chat_messages")
 }
@@ -222,15 +230,15 @@ model CbtExercise {
 }
 
 model ExerciseCompletion {
-  id          String      @id @default(uuid())
+  id          String   @id @default(uuid())
   userId      String
   exerciseId  String
-  completedAt DateTime    @default(now())
+  completedAt DateTime @default(now())
   feedback    String?
   rating      Int?
 
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  exercise    CbtExercise @relation(fields: [exerciseId], references: [id])
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise CbtExercise @relation(fields: [exerciseId], references: [id])
 
   @@unique([userId, exerciseId])
   @@map("exercise_completions")
@@ -256,21 +264,21 @@ model WeeklyReport {
   sentAt              DateTime?
   createdAt           DateTime      @default(now())
 
-  patient             User          @relation("PatientReports", fields: [patientId], references: [id])
-  guardian            User?         @relation("GuardianReports", fields: [guardianId], references: [id])
+  patient  User  @relation("PatientReports", fields: [patientId], references: [id])
+  guardian User? @relation("GuardianReports", fields: [guardianId], references: [id])
 
   @@map("weekly_reports")
 }
 
 model TherapistReview {
-  id                 String           @id @default(uuid())
+  id                 String   @id @default(uuid())
   therapistProfileId String
   patientId          String
   rating             Int
   comment            String?
-  createdAt          DateTime         @default(now())
+  createdAt          DateTime @default(now())
 
-  therapistProfile   TherapistProfile @relation(fields: [therapistProfileId], references: [id])
+  therapistProfile TherapistProfile @relation(fields: [therapistProfileId], references: [id])
 
   @@map("therapist_reviews")
 }
@@ -285,4 +293,22 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@map("notifications")
+}
+
+// Standardized self-report screening instruments (PHQ-9, GAD-7, OCI-R, DASS-21).
+// Scored by fixed published formulas — no AI involved. A result is a screening
+// result, not a diagnosis.
+model QuestionnaireResponse {
+  id            String            @id @default(uuid())
+  userId        String
+  user          User              @relation(fields: [userId], references: [id])
+  type          QuestionnaireType
+  answers       Json // raw per-item answers
+  score         Int // computed total
+  severityLabel String // per the instrument's published bands
+  subscores     Json? // DASS-21 (depression/anxiety/stress) and OCI-R subscales
+  createdAt     DateTime          @default(now())
+
+  @@index([userId, createdAt])
+  @@map("questionnaire_responses")
 }

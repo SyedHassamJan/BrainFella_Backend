@@ -4,4 +4,5 @@ export {
   AppointmentStatus,
   SessionType,
   ReportStatus,
+  QuestionnaireType,
 } from '@prisma/client';
