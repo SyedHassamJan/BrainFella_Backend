@@ -1,10 +1,7 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { NotificationService } from 'src/notification/notification.service';
+import { assertTherapistPatientLink } from 'src/common/patient-access';
 import { QuestionnaireType } from 'src/types/enums';
 import { INSTRUMENTS } from './instruments';
 import { scoreQuestionnaire, validateAnswers } from './scoring';
@@ -75,19 +72,7 @@ export class QuestionnaireService {
     patientId: string,
     type?: QuestionnaireType,
   ) {
-    // Ownership: therapist must have a confirmed/completed appointment with
-    // this patient (same rule as GET /user/patients).
-    const link = await this.prisma.appointment.findFirst({
-      where: {
-        therapistId,
-        patientId,
-        status: { in: ['CONFIRMED', 'COMPLETED'] },
-      },
-      select: { id: true },
-    });
-    if (!link) {
-      throw new ForbiddenException('This patient is not linked to you');
-    }
+    await assertTherapistPatientLink(this.prisma, therapistId, patientId);
     return this.getMyHistory(patientId, type);
   }
 }

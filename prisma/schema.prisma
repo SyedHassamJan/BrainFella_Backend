@@ -45,6 +45,12 @@ enum ReportStatus {
   SENT
 }
 
+enum ScreeningModality {
+  FACIAL
+  VOICE
+  TEXT
+}
+
 enum QuestionnaireType {
   PHQ9
   GAD7
@@ -77,6 +83,8 @@ model User {
   reportsAbout            WeeklyReport[]          @relation("PatientReports")
   completedExercises      ExerciseCompletion[]
   questionnaireResponses  QuestionnaireResponse[]
+  screeningSignals        ScreeningSignal[]
+  riskAssessments         RiskAssessment[]
 
   @@map("users")
 }
@@ -311,4 +319,40 @@ model QuestionnaireResponse {
 
   @@index([userId, createdAt])
   @@map("questionnaire_responses")
+}
+
+// Derived signals from a single screening input (facial / voice / text).
+// Holds ONLY derived numbers and labels - never the image, audio, transcript
+// or typed text. Auto-deleted after 30 days (see SignalService).
+model ScreeningSignal {
+  id        String            @id @default(uuid())
+  userId    String
+  user      User              @relation(fields: [userId], references: [id])
+  modality  ScreeningModality
+  payload   Json
+  createdAt DateTime          @default(now())
+
+  @@index([userId, createdAt])
+  @@map("screening_signals")
+}
+
+// Output of the rule-based fusion layer: a risk INDICATOR / screening result,
+// not a diagnosis and not the output of a trained model. A risk is null when
+// no relevant input was available (never a fake 0).
+model RiskAssessment {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  depressionRisk Int?
+  anxietyRisk    Int?
+  stressRisk     Int?
+  ocdRisk        Int?
+  crisisFlag     Boolean  @default(false)
+  confidence     String // "high" | "low" (low = no validated questionnaire behind a reported risk)
+  inputsUsed     String[]
+  breakdown      Json // per-condition, per-source contributions and recorded-but-unscored signals
+  computedAt     DateTime @default(now())
+
+  @@index([userId, computedAt])
+  @@map("risk_assessments")
 }
