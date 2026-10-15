@@ -10,6 +10,7 @@ import { UpdateJournalDto } from './dto/update-journal.dto';
 import { TherapistCommentDto } from './dto/therapist-comment.dto';
 import { EmotionLabel } from 'src/types/enums';
 import { containsCrisisKeywords } from 'src/common/crisis';
+import { assertTherapistPatientLink } from 'src/common/patient-access';
 import {
   DEFAULT_EMOTION_MODEL,
   hfModelUrl,
@@ -150,7 +151,9 @@ export class JournalService {
     });
   }
 
-  async getPatientEntries(patientId: string, page = 1, limit = 10) {
+  /** A linked therapist only (confirmed/completed appointment, or the patient shares with them). */
+  async getPatientEntries(therapistId: string, patientId: string, page = 1, limit = 10) {
+    await assertTherapistPatientLink(this.prisma, therapistId, patientId);
     const skip = (page - 1) * limit;
     const [entries, total] = await Promise.all([
       this.prisma.journalEntry.findMany({
@@ -171,6 +174,7 @@ export class JournalService {
   ) {
     const entry = await this.prisma.journalEntry.findUnique({ where: { id } });
     if (!entry) throw new NotFoundException('Journal entry not found');
+    await assertTherapistPatientLink(this.prisma, therapistId, entry.userId);
     return this.prisma.journalEntry.update({
       where: { id },
       data: {

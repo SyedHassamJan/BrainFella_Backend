@@ -85,3 +85,23 @@ export function parseZeroShot(data: unknown): Record<string, number> {
   for (const { label, score } of parseClassification(data)) out[label] = score;
   return out;
 }
+
+const EMOTIONS = ['joy', 'sadness', 'anger', 'fear', 'disgust', 'surprise', 'neutral'] as const;
+export type DetectedEmotion = { emotion: (typeof EMOTIONS)[number]; score: number };
+
+/**
+ * The dominant emotion of a short text, or null if the model is unavailable or
+ * returns an unknown label. Never fakes a "neutral" result. Short timeout: it
+ * runs inside a user's request (e.g. saving a mood check-in).
+ */
+export async function detectTextEmotion(text: string, timeoutMs = 8000): Promise<DetectedEmotion | null> {
+  try {
+    const top = parseClassification(
+      await hfPost(process.env.HF_EMOTION_MODEL || DEFAULT_EMOTION_MODEL, { inputs: text }, timeoutMs),
+    )[0];
+    const label = top?.label.toLowerCase();
+    return top && (EMOTIONS as readonly string[]).includes(label!) ? { emotion: label as DetectedEmotion['emotion'], score: top.score } : null;
+  } catch {
+    return null;
+  }
+}

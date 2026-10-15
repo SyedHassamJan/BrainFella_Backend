@@ -44,6 +44,12 @@ export class UserController {
     return this.userService.getTherapistPatients(req.user.id);
   }
 
+  /** The patient finished or skipped the mobile guided tour; it is not shown again. */
+  @Post('onboarding/complete')
+  completeOnboarding(@Request() req) {
+    return this.userService.completeOnboarding(req.user.id);
+  }
+
   @Roles(Role.ADMIN)
   @UseGuards(RolesGuard)
   @Get('all')

@@ -23,6 +23,7 @@ describe('AssessmentService', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       appointment: { findFirst: jest.fn() },
+      therapistConnection: { findFirst: jest.fn().mockResolvedValue(null) },
     };
     signals = { getRecent: jest.fn().mockResolvedValue([]) };
     service = new AssessmentService(prisma, new FusionService(), signals as any);

@@ -10,6 +10,7 @@ describe('NotificationService.notifyLinkedTherapistsOfCrisis', () => {
   beforeEach(() => {
     prisma = {
       appointment: { findMany: jest.fn().mockResolvedValue([{ therapistId: 't1' }, { therapistId: 't2' }]) },
+      therapistConnection: { findMany: jest.fn().mockResolvedValue([]) },
       user: {
         findUnique: jest.fn().mockResolvedValue({ name: 'Aisha Khan' }),
         findMany: jest.fn().mockResolvedValue([
@@ -44,6 +45,18 @@ describe('NotificationService.notifyLinkedTherapistsOfCrisis', () => {
     await service.notifyLinkedTherapistsOfCrisis('p1', 'chat', NOW);
     const where = prisma.appointment.findMany.mock.calls[0][0].where;
     expect(where).toEqual({ patientId: 'p1', status: { in: ['CONFIRMED', 'COMPLETED'] } });
+  });
+
+  it('also alerts a therapist the patient shares records with, once even if also booked', async () => {
+    prisma.therapistConnection.findMany.mockResolvedValue([{ therapistId: 't2' }, { therapistId: 't3' }]);
+    prisma.user.findMany.mockResolvedValue([
+      { id: 't1', name: 'Dr One', email: 'one@example.com' },
+      { id: 't2', name: 'Dr Two', email: 'two@example.com' },
+      { id: 't3', name: 'Dr Three', email: 'three@example.com' },
+    ]);
+    await expect(service.notifyLinkedTherapistsOfCrisis('p1', 'mood', NOW)).resolves.toBe(3);
+    expect(created().map((r: any) => r.userId).sort()).toEqual(['t1', 't2', 't3']);
+    expect(prisma.therapistConnection.findMany.mock.calls[0][0].where).toEqual({ patientId: 'p1', sharedAt: { not: null } });
   });
 
   it('does nothing when the patient has no linked therapist', async () => {

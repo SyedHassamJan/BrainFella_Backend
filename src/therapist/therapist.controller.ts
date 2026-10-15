@@ -7,8 +7,10 @@ import {
   Post,
   Query,
   Request,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { TherapistService } from './therapist.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles/roles.guard';
@@ -30,6 +32,19 @@ export class TherapistController {
   @Get(':id')
   getOne(@Param('id') id: string) {
     return this.therapistService.getOne(id);
+  }
+
+  // Public — the profile photo of an APPROVED therapist only (pending/rejected photos are admin-only)
+  @Get(':id/photo')
+  async getPhoto(@Param('id') id: string, @Res() res: Response) {
+    const photo = await this.therapistService.getVerifiedPhoto(id);
+    res.set({
+      'Content-Type': photo.mimeType,
+      'Content-Length': String(photo.size),
+      'Cache-Control': 'public, max-age=3600',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    res.end(Buffer.from(photo.data));
   }
 
   @Roles(Role.PATIENT)

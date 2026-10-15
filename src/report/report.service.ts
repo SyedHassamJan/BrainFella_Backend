@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { assertTherapistPatientLink } from 'src/common/patient-access';
 import { NotificationService } from 'src/notification/notification.service';
 import { escapeHtml } from 'src/common/mail.service';
 import * as nodemailer from 'nodemailer';
@@ -93,6 +94,7 @@ export class ReportService {
 
     const crisisEvents = [
       ...journalEntries.filter((j) => j.isCrisis),
+      ...moodLogs.filter((m) => m.isCrisis),
       ...(
         await this.prisma.chatMessage.findMany({
           where: {
@@ -230,7 +232,9 @@ export class ReportService {
     });
   }
 
-  async getPatientReports(patientId: string) {
+  /** A linked therapist only (confirmed/completed appointment, or the patient shares with them). */
+  async getPatientReports(therapistId: string, patientId: string) {
+    await assertTherapistPatientLink(this.prisma, therapistId, patientId);
     return this.prisma.weeklyReport.findMany({
       where: { patientId },
       orderBy: { weekStartDate: 'desc' },

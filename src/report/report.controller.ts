@@ -25,7 +25,7 @@ export class ReportController {
   @Roles(Role.THERAPIST)
   @UseGuards(RolesGuard)
   @Get('patient/:patientId')
-  getPatientReports(@Param('patientId') patientId: string) {
-    return this.reportService.getPatientReports(patientId);
+  getPatientReports(@Param('patientId') patientId: string, @Request() req) {
+    return this.reportService.getPatientReports(req.user.id, patientId);
   }
 }
