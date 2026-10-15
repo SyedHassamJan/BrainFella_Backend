@@ -47,10 +47,12 @@ export class JournalController {
   @Get('patient/:patientId')
   getPatientEntries(
     @Param('patientId') patientId: string,
+    @Request() req,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.journalService.getPatientEntries(
+      req.user.id,
       patientId,
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 10,

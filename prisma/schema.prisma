@@ -58,18 +58,33 @@ enum QuestionnaireType {
   DASS21
 }
 
+/// Where a therapist's application stands. APPROVED is kept in sync with TherapistProfile.isVerified.
+enum VerificationStatus {
+  NOT_SUBMITTED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TherapistDocumentKind {
+  CV
+  PHOTO
+}
+
 model User {
-  id                 String   @id @default(uuid())
-  email              String   @unique
-  name               String
-  password           String?
-  hashedRefreshToken String?
-  role               Role     @default(PATIENT)
-  profileImage       String?
-  phone              String?
-  isActive           Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                    String    @id @default(uuid())
+  email                 String    @unique
+  name                  String
+  password              String?
+  hashedRefreshToken    String?
+  role                  Role      @default(PATIENT)
+  profileImage          String?
+  phone                 String?
+  isActive              Boolean   @default(true)
+  /// Set when the patient finishes (or skips) the mobile guided tour, so it is shown only once.
+  onboardingCompletedAt DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   patientProfile          PatientProfile?
   therapistProfile        TherapistProfile?
@@ -85,6 +100,8 @@ model User {
   questionnaireResponses  QuestionnaireResponse[]
   screeningSignals        ScreeningSignal[]
   riskAssessments         RiskAssessment[]
+  connectionsAsPatient    TherapistConnection[]   @relation("PatientConnections")
+  connectionsAsTherapist  TherapistConnection[]   @relation("TherapistConnections")
 
   @@map("users")
 }
@@ -104,27 +121,71 @@ model PatientProfile {
 }
 
 model TherapistProfile {
-  id                String   @id @default(uuid())
-  userId            String   @unique
-  bio               String?
-  specializations   String[]
-  qualifications    String[]
-  experienceYears   Int      @default(0)
-  profileImage      String?
-  consultationFee   Float?
-  availableDays     String[]
-  availableTimeFrom String?
-  availableTimeTo   String?
-  rating            Float?   @default(0)
-  totalReviews      Int      @default(0)
-  isVerified        Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                 String             @id @default(uuid())
+  userId             String             @unique
+  bio                String?
+  specializations    String[]
+  qualifications     String[]
+  experienceYears    Int                @default(0)
+  profileImage       String?
+  consultationFee    Float?
+  availableDays      String[]
+  availableTimeFrom  String?
+  availableTimeTo    String?
+  rating             Float?             @default(0)
+  totalReviews       Int                @default(0)
+  isVerified         Boolean            @default(false)
+  whatsappNumber     String?
+  verificationStatus VerificationStatus @default(NOT_SUBMITTED)
+  submittedAt        DateTime?
+  reviewedAt         DateTime?
+  reviewNote         String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
-  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reviews TherapistReview[]
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviews   TherapistReview[]
+  documents TherapistDocument[]
 
   @@map("therapist_profiles")
+}
+
+/// A patient's relationship with one therapist outside a booking: they tapped
+/// "Chat on WhatsApp" (contactedAt) and/or chose to share their records (sharedAt).
+/// sharedAt != null grants the therapist read access, like a confirmed appointment.
+model TherapistConnection {
+  id          String    @id @default(uuid())
+  patientId   String
+  therapistId String
+  contactedAt DateTime?
+  sharedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  patient   User @relation("PatientConnections", fields: [patientId], references: [id], onDelete: Cascade)
+  therapist User @relation("TherapistConnections", fields: [therapistId], references: [id], onDelete: Cascade)
+
+  @@unique([patientId, therapistId])
+  @@index([therapistId])
+  @@map("therapist_connections")
+}
+
+/// A file a therapist uploads for admin review (one current CV and one photo each).
+/// Stored in the database itself; never included in list queries.
+model TherapistDocument {
+  id                 String                @id @default(uuid())
+  therapistProfileId String
+  kind               TherapistDocumentKind
+  fileName           String
+  mimeType           String
+  size               Int
+  data               Bytes
+  createdAt          DateTime              @default(now())
+
+  therapistProfile TherapistProfile @relation(fields: [therapistProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([therapistProfileId, kind])
+  @@map("therapist_documents")
 }
 
 model GuardianLink {
@@ -181,12 +242,16 @@ model JournalEntry {
 }
 
 model MoodLog {
-  id        String       @id @default(uuid())
-  userId    String
-  mood      EmotionLabel
-  intensity Int
-  note      String?
-  loggedAt  DateTime     @default(now())
+  id              String        @id @default(uuid())
+  userId          String
+  mood            EmotionLabel
+  intensity       Int
+  note            String?
+  isCrisis        Boolean       @default(false)
+  /// Tone of the note from the emotion model (null: no note, or the model was unavailable). The chosen mood is never changed.
+  detectedEmotion EmotionLabel?
+  emotionScore    Float?
+  loggedAt        DateTime      @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

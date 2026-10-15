@@ -17,6 +17,14 @@ export class AppointmentService {
   ) {}
 
   async create(patientId: string, dto: CreateAppointmentDto) {
+    // Only approved therapists can be booked: a confirmed booking links the
+    // therapist to this patient's records, so it must not bypass admin review.
+    const therapist = await this.prisma.therapistProfile.findFirst({
+      where: { userId: dto.therapistId, isVerified: true, user: { role: Role.THERAPIST, isActive: true } },
+      select: { id: true },
+    });
+    if (!therapist) throw new NotFoundException('Therapist not found or not yet approved');
+
     return this.prisma.appointment.create({
       data: {
         patientId,

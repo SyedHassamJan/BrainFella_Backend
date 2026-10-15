@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Post,
   Req,
@@ -28,9 +29,23 @@ export class AuthController {
     return this.authService.registerUser(createUserDto);
   }
 
+  /** Patients, therapists and guardians. Admins must use the separate admin sign-in. */
   @UseGuards(LocalAuthGuard)
   @Post('signin')
   login(@Request() req) {
+    if (req.user.role === Role.ADMIN) {
+      throw new ForbiddenException('Administrators sign in on the admin login page.');
+    }
+    return this.authService.login(req.user.id, req.user.name, req.user.role);
+  }
+
+  /** The admin login page's endpoint: only ADMIN accounts get tokens here. */
+  @UseGuards(LocalAuthGuard)
+  @Post('admin/signin')
+  adminLogin(@Request() req) {
+    if (req.user.role !== Role.ADMIN) {
+      throw new ForbiddenException('This sign-in is for administrators only.');
+    }
     return this.authService.login(req.user.id, req.user.name, req.user.role);
   }
 
@@ -60,12 +75,16 @@ export class AuthController {
   @UseGuards(GoogleAuthGuard)
   @Get('google/callback')
   async googleCallback(@Request() req, @Res() res: Response) {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    // Admins only sign in with a password on the admin login page.
+    if (req.user.role === Role.ADMIN) {
+      return res.redirect(`${frontendUrl}/admin/login?error=google`);
+    }
     const response = await this.authService.login(
       req.user.id,
       req.user.name,
       req.user.role,
     );
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     res.redirect(
       `${frontendUrl}/callback?userId=${response.id}&name=${response.name}&accessToken=${response.accessToken}&refreshToken=${response.refreshToken}&role=${response.role}`,
     );

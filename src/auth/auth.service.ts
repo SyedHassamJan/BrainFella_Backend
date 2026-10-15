@@ -12,6 +12,7 @@ import { JwtService } from '@nestjs/jwt';
 import refreshConfig from './config/refresh.config';
 import type { ConfigType } from '@nestjs/config';
 import { Role } from 'src/types/enums';
+import { assertRealisticEmail } from 'src/common/email-check';
 
 @Injectable()
 export class AuthService {
@@ -25,6 +26,7 @@ export class AuthService {
   async registerUser(createUserDto: CreateUserDto) {
     const user = await this.userService.findByEmail(createUserDto.email);
     if (user) throw new ConflictException('User already exists!');
+    await assertRealisticEmail(createUserDto.email);
     return this.userService.create(createUserDto);
   }
 
