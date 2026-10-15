@@ -1,15 +1,52 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { NotificationService } from 'src/notification/notification.service';
+import { containsCrisisKeywords } from 'src/common/crisis';
+import { detectTextEmotion } from 'src/common/huggingface';
+import { assertTherapistPatientLink } from 'src/common/patient-access';
 import { CreateMoodDto } from './dto/create-mood.dto';
+
+export const MOOD_CRISIS_SUPPORT =
+  'We noticed you may be going through a very difficult time. You are not alone — please reach out to the Umang helpline now: 0317-4288665, or book a session with a therapist on BrainHealth.';
 
 @Injectable()
 export class MoodService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
+  /**
+   * Saves a check-in. The optional note goes through the same crisis check as
+   * journal and chat (the chosen mood is not a reason to skip it: someone can
+   * tap "Calm" and still write something alarming), and the emotion model reads
+   * its tone. The tone is stored and shown next to the chosen mood; it never
+   * replaces what the person picked. If the model is down the tone is null.
+   */
   async create(userId: string, dto: CreateMoodDto) {
-    return this.prisma.moodLog.create({
-      data: { userId, ...dto },
+    const note = dto.note?.trim();
+    const isCrisis = !!note && containsCrisisKeywords(note);
+    const tone = note ? await detectTextEmotion(note) : null;
+    const log = await this.prisma.moodLog.create({
+      data: {
+        userId,
+        ...dto,
+        isCrisis,
+        detectedEmotion: tone?.emotion ?? null,
+        emotionScore: tone?.score ?? null,
+      },
     });
+
+    if (!isCrisis) return log;
+
+    await this.notificationService.createNotification(
+      userId,
+      'Crisis Detected',
+      'We noticed you may be going through a very difficult time. Please reach out to our helpline: Umang 0317-4288665 or book a session with a therapist.',
+      'CRISIS_DETECTED',
+    );
+    await this.notificationService.notifyLinkedTherapistsOfCrisis(userId, 'mood');
+    return { ...log, crisisSupport: MOOD_CRISIS_SUPPORT };
   }
 
   async getMyLogs(userId: string, from?: string, to?: string) {
@@ -89,7 +126,9 @@ export class MoodService {
     };
   }
 
-  async getPatientLogs(patientId: string) {
+  /** A linked therapist only (confirmed/completed appointment, or the patient shares with them). */
+  async getPatientLogs(therapistId: string, patientId: string) {
+    await assertTherapistPatientLink(this.prisma, therapistId, patientId);
     return this.prisma.moodLog.findMany({
       where: { userId: patientId },
       orderBy: { loggedAt: 'desc' },

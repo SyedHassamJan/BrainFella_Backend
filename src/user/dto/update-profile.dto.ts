@@ -63,6 +63,11 @@ export class UpdateTherapistProfileDto {
   @IsOptional()
   @IsString()
   availableTimeTo?: string;
+
+  /** Normalised server-side to international digits (e.g. 923001234567). */
+  @IsOptional()
+  @IsString()
+  whatsappNumber?: string;
 }
 
 export class UpdateProfileDto {

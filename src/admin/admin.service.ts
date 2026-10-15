@@ -35,6 +35,7 @@ export class AdminService {
       crisisJournals,
       crisisMessages,
       totalAppointments,
+      crisisMoods,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.user.count({ where: { role: 'PATIENT' } }),
@@ -44,6 +45,7 @@ export class AdminService {
       this.prisma.journalEntry.count({ where: { isCrisis: true } }),
       this.prisma.chatMessage.count({ where: { isCrisis: true } }),
       this.prisma.appointment.count(),
+      this.prisma.moodLog.count({ where: { isCrisis: true } }),
     ]);
 
     return {
@@ -52,7 +54,7 @@ export class AdminService {
       totalTherapists,
       totalSessions,
       totalJournals,
-      crisisEventsCount: crisisJournals + crisisMessages,
+      crisisEventsCount: crisisJournals + crisisMessages + crisisMoods,
       totalAppointments,
     };
   }
@@ -66,7 +68,7 @@ export class AdminService {
   }
 
   async getCrisisEvents() {
-    const [crisisJournals, crisisMessages] = await Promise.all([
+    const [crisisJournals, crisisMessages, crisisMoodLogs] = await Promise.all([
       this.prisma.journalEntry.findMany({
         where: { isCrisis: true },
         include: {
@@ -85,8 +87,15 @@ export class AdminService {
         },
         orderBy: { createdAt: 'desc' },
       }),
+      this.prisma.moodLog.findMany({
+        where: { isCrisis: true },
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { loggedAt: 'desc' },
+      }),
     ]);
 
-    return { crisisJournals, crisisMessages };
+    return { crisisJournals, crisisMessages, crisisMoodLogs };
   }
 }

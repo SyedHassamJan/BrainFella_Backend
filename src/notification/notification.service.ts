@@ -1,15 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { MailService, escapeHtml } from 'src/common/mail.service';
+import { linkedTherapistIds } from 'src/common/patient-access';
 
 /** Where a crisis signal came from (used only to word the alert; no content is shared). */
-export type CrisisSource = 'journal' | 'chat' | 'screening' | 'questionnaire';
+export type CrisisSource = 'journal' | 'chat' | 'screening' | 'questionnaire' | 'mood';
 
 const SOURCE_LABEL: Record<CrisisSource, string> = {
   journal: 'a journal entry',
   chat: 'a chat message',
   screening: 'a screening input',
   questionnaire: 'a questionnaire answer',
+  mood: 'a mood check-in',
 };
 
 /**
@@ -41,9 +43,10 @@ export class NotificationService {
   }
 
   /**
-   * When a patient's journal, chat, screening text or PHQ-9 answer raises a
+   * When a patient's journal, chat, mood note, screening text or PHQ-9 answer raises a
    * crisis flag, also tell the therapists who are actually working with them
-   * (a CONFIRMED or COMPLETED appointment: the same link used everywhere else).
+   * (a CONFIRMED or COMPLETED appointment, or the patient shares their records
+   * with them: the same link used everywhere else, see linkedTherapistIds).
    *
    * Privacy: the alert names the patient and the kind of input, never what
    * they wrote; the therapist reads the record through the normal, access-
@@ -52,24 +55,20 @@ export class NotificationService {
    */
   async notifyLinkedTherapistsOfCrisis(patientId: string, source: CrisisSource, now: Date = new Date()): Promise<number> {
     try {
-      const links = await this.prisma.appointment.findMany({
-        where: { patientId, status: { in: ['CONFIRMED', 'COMPLETED'] } },
-        select: { therapistId: true },
-        distinct: ['therapistId'],
-      });
-      if (links.length === 0) return 0;
+      const ids = await linkedTherapistIds(this.prisma, patientId);
+      if (ids.length === 0) return 0;
 
       const patient = await this.prisma.user.findUnique({ where: { id: patientId }, select: { name: true } });
       const name = patient?.name?.trim() || 'One of your patients';
       const since = new Date(now.getTime() - THERAPIST_ALERT_WINDOW_MS);
       const therapists = await this.prisma.user.findMany({
-        where: { id: { in: links.map((l) => l.therapistId) } },
+        where: { id: { in: ids } },
         select: { id: true, name: true, email: true },
       });
       const byId = new Map(therapists.map((t) => [t.id, t]));
 
       let alerted = 0;
-      for (const { therapistId } of links) {
+      for (const therapistId of ids) {
         const recent = await this.prisma.notification.findFirst({
           where: { userId: therapistId, type: 'CRISIS_ALERT', relatedUserId: patientId, createdAt: { gte: since } },
           select: { id: true },

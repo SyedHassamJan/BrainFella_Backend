@@ -44,7 +44,7 @@ export class MoodController {
   @Roles(Role.THERAPIST)
   @UseGuards(RolesGuard)
   @Get('patient/:patientId')
-  getPatientLogs(@Param('patientId') patientId: string) {
-    return this.moodService.getPatientLogs(patientId);
+  getPatientLogs(@Param('patientId') patientId: string, @Request() req) {
+    return this.moodService.getPatientLogs(req.user.id, patientId);
   }
 }
